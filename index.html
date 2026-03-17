@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Job Tracker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f5f5f3;
+      --bg-tertiary: #eeede9;
+      --text-primary: #1a1a18;
+      --text-secondary: #6b6b67;
+      --text-tertiary: #9e9e9a;
+      --border-subtle: rgba(0,0,0,0.10);
+      --border-mid: rgba(0,0,0,0.18);
+      --border-strong: rgba(0,0,0,0.28);
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary: #1c1c1a;
+        --bg-secondary: #252523;
+        --bg-tertiary: #2e2e2b;
+        --text-primary: #f0efe9;
+        --text-secondary: #a0a09a;
+        --text-tertiary: #6e6e68;
+        --border-subtle: rgba(255,255,255,0.08);
+        --border-mid: rgba(255,255,255,0.14);
+        --border-strong: rgba(255,255,255,0.22);
+      }
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container { max-width: 780px; margin: 0 auto; }
+
+    .header {
+      display: flex; align-items: flex-start;
+      justify-content: space-between; flex-wrap: wrap;
+      gap: 12px; margin-bottom: 1.5rem;
+    }
+    .app-title { font-size: 26px; font-weight: 600; letter-spacing: -0.5px; }
+    .app-subtitle { font-size: 14px; color: var(--text-secondary); margin-top: 3px; }
+
+    .add-btn {
+      background: var(--text-primary); color: var(--bg-primary);
+      border: none; border-radius: var(--radius-md);
+      padding: 9px 18px; font-size: 14px; font-weight: 500;
+      cursor: pointer; display: flex; align-items: center; gap: 6px;
+      white-space: nowrap;
+    }
+    .add-btn:hover { opacity: 0.85; }
+
+    .stats-row {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+      gap: 10px; margin-bottom: 1.25rem;
+    }
+    .stat-card {
+      background: var(--bg-primary); border-radius: var(--radius-md);
+      border: 0.5px solid var(--border-subtle); padding: 12px 14px;
+    }
+    .stat-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+    .stat-value { font-size: 24px; font-weight: 600; }
+
+    .filters {
+      display: flex; gap: 7px; margin-bottom: 1.25rem;
+      flex-wrap: wrap; align-items: center;
+    }
+    .filter-label { font-size: 13px; color: var(--text-secondary); margin-right: 2px; }
+    .filter-btn {
+      border: 0.5px solid var(--border-mid); border-radius: var(--radius-md);
+      padding: 5px 13px; font-size: 13px; cursor: pointer;
+      background: transparent; color: var(--text-secondary);
+      font-family: var(--font);
+    }
+    .filter-btn.active {
+      background: var(--text-primary); color: var(--bg-primary);
+      border-color: var(--text-primary);
+    }
+    .filter-btn:hover:not(.active) { border-color: var(--border-strong); color: var(--text-primary); }
+
+    .search-box {
+      margin-left: auto;
+      border: 0.5px solid var(--border-mid); border-radius: var(--radius-md);
+      padding: 6px 12px; font-size: 13px; background: var(--bg-primary);
+      color: var(--text-primary); font-family: var(--font); width: 190px;
+    }
+    .search-box:focus { outline: none; border-color: var(--border-strong); }
+
+    .jobs-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .job-card {
+      background: var(--bg-primary); border: 0.5px solid var(--border-subtle);
+      border-radius: var(--radius-lg); padding: 1rem 1.25rem;
+      display: flex; align-items: flex-start; gap: 14px;
+    }
+    .job-card:hover { border-color: var(--border-mid); }
+
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+
+    .job-main { flex: 1; min-width: 0; }
+    .job-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+    .job-title { font-size: 15px; font-weight: 500; }
+    .job-company { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+
+    .status-badge {
+      font-size: 11px; font-weight: 500; padding: 3px 10px;
+      border-radius: 100px; white-space: nowrap; flex-shrink: 0;
+    }
+
+    .job-meta { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+    .job-date { font-size: 12px; color: var(--text-tertiary); }
+    .job-link { font-size: 12px; color: #378ADD; text-decoration: none; }
+    .job-link:hover { text-decoration: underline; }
+    .job-notes { font-size: 12px; color: var(--text-tertiary); font-style: italic; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 520px; }
+
+    .job-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .icon-btn {
+      background: none; border: 0.5px solid var(--border-subtle);
+      border-radius: var(--radius-md); width: 30px; height: 30px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-secondary); font-size: 14px;
+    }
+    .icon-btn:hover { background: var(--bg-secondary); color: var(--text-primary); }
+
+    .empty-state { text-align: center; padding: 4rem 1rem; }
+    .empty-title { font-size: 17px; font-weight: 500; margin-bottom: 6px; }
+    .empty-sub { font-size: 14px; color: var(--text-secondary); }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; padding: 1rem;
+    }
+    .modal {
+      background: var(--bg-primary); border-radius: var(--radius-lg);
+      border: 0.5px solid var(--border-mid); padding: 1.5rem;
+      width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto;
+    }
+    .modal-title { font-size: 18px; font-weight: 500; margin-bottom: 1.25rem; }
+
+    .field { margin-bottom: 1rem; }
+    .field label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 5px; }
+    .field input, .field select, .field textarea {
+      width: 100%; border: 0.5px solid var(--border-mid);
+      border-radius: var(--radius-md); padding: 8px 10px;
+      font-size: 14px; background: var(--bg-primary);
+      color: var(--text-primary); font-family: var(--font);
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      outline: none; border-color: var(--border-strong);
+    }
+    .field textarea { resize: vertical; min-height: 72px; }
+
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 1.25rem; }
+    .btn-cancel {
+      border: 0.5px solid var(--border-mid); border-radius: var(--radius-md);
+      padding: 8px 16px; font-size: 14px; cursor: pointer;
+      background: transparent; color: var(--text-secondary); font-family: var(--font);
+    }
+    .btn-cancel:hover { background: var(--bg-secondary); }
+    .btn-save {
+      background: var(--text-primary); color: var(--bg-primary);
+      border: none; border-radius: var(--radius-md);
+      padding: 8px 18px; font-size: 14px; font-weight: 500;
+      cursor: pointer; font-family: var(--font);
+    }
+    .btn-save:hover { opacity: 0.85; }
+
+    /* Confirm dialog */
+    .confirm-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200; padding: 1rem;
+    }
+    .confirm-box {
+      background: var(--bg-primary); border-radius: var(--radius-lg);
+      border: 0.5px solid var(--border-mid); padding: 1.5rem;
+      width: 100%; max-width: 360px;
+    }
+    .confirm-box p { font-size: 14px; color: var(--text-secondary); margin: 6px 0 1.25rem; }
+    .confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .btn-danger {
+      background: #E24B4A; color: #fff; border: none;
+      border-radius: var(--radius-md); padding: 8px 16px;
+      font-size: 14px; font-weight: 500; cursor: pointer; font-family: var(--font);
+    }
+
+    @media (max-width: 540px) {
+      .search-box { margin-left: 0; width: 100%; }
+      .filter-label { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div>
+      <div class="app-title">Job tracker</div>
+      <div class="app-subtitle" id="app-count">0 applications</div>
+    </div>
+    <button class="add-btn" onclick="openAdd()">
+      <span style="font-size:19px;line-height:1;">+</span> Add job
+    </button>
+  </div>
+
+  <div class="stats-row" id="stats-row"></div>
+
+  <div class="filters">
+    <span class="filter-label">Filter:</span>
+    <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+    <button class="filter-btn" onclick="setFilter('Wishlist',this)">Wishlist</button>
+    <button class="filter-btn" onclick="setFilter('Applied',this)">Applied</button>
+    <button class="filter-btn" onclick="setFilter('Interview',this)">Interviewing</button>
+    <button class="filter-btn" onclick="setFilter('Offer',this)">Offers</button>
+    <button class="filter-btn" onclick="setFilter('Rejected',this)">Rejected</button>
+    <input class="search-box" type="text" placeholder="Search..." id="search-box" oninput="renderList()" />
+  </div>
+
+  <div class="jobs-list" id="jobs-list"></div>
+</div>
+
+<!-- Add / Edit modal -->
+<div id="modal" class="modal-overlay" style="display:none;">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">Add job</div>
+    <div class="field"><label>Job title *</label><input id="f-title" type="text" placeholder="e.g. Senior Software Engineer" /></div>
+    <div class="field"><label>Company *</label><input id="f-company" type="text" placeholder="e.g. Acme Corp" /></div>
+    <div class="field"><label>Job posting URL</label><input id="f-url" type="url" placeholder="https://..." /></div>
+    <div class="field"><label>Status</label>
+      <select id="f-status">
+        <option value="Wishlist">Wishlist — want to apply</option>
+        <option value="Applied">Applied</option>
+        <option value="Phone Screen">Phone screen</option>
+        <option value="Interview">Interviewing</option>
+        <option value="Final Round">Final round</option>
+        <option value="Offer">Offer received</option>
+        <option value="Rejected">Rejected</option>
+        <option value="Withdrawn">Withdrawn</option>
+      </select>
+    </div>
+    <div class="field"><label>Date applied</label><input id="f-date" type="date" /></div>
+    <div class="field"><label>Notes</label><textarea id="f-notes" placeholder="Recruiter name, salary range, interview format..."></textarea></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveJob()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete confirm -->
+<div id="confirm" class="confirm-overlay" style="display:none;">
+  <div class="confirm-box">
+    <div style="font-size:15px;font-weight:500;">Remove this job?</div>
+    <p>This cannot be undone.</p>
+    <div class="confirm-actions">
+      <button class="btn-cancel" onclick="document.getElementById('confirm').style.display='none'">Cancel</button>
+      <button class="btn-danger" onclick="confirmDelete()">Remove</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STATUS_CONFIG = {
+  'Wishlist':     { dot:'#888780', bg:'#F1EFE8', text:'#444441' },
+  'Applied':      { dot:'#378ADD', bg:'#E6F1FB', text:'#0C447C' },
+  'Phone Screen': { dot:'#639922', bg:'#EAF3DE', text:'#27500A' },
+  'Interview':    { dot:'#EF9F27', bg:'#FAEEDA', text:'#633806' },
+  'Final Round':  { dot:'#D4537E', bg:'#FBEAF0', text:'#72243E' },
+  'Offer':        { dot:'#1D9E75', bg:'#E1F5EE', text:'#085041' },
+  'Rejected':     { dot:'#E24B4A', bg:'#FCEBEB', text:'#791F1F' },
+  'Withdrawn':    { dot:'#B4B2A9', bg:'#F1EFE8', text:'#5F5E5A' },
+};
+
+const STATS = [
+  { key:'Applied',   label:'Applied' },
+  { key:'Interview', label:'Interviewing' },
+  { key:'Offer',     label:'Offers' },
+  { key:'Rejected',  label:'Rejected' },
+];
+
+let jobs = [];
+let editingId = null;
+let deleteId = null;
+let currentFilter = 'all';
+
+function loadJobs() {
+  try { jobs = JSON.parse(localStorage.getItem('jat_jobs') || '[]'); } catch(e) { jobs = []; }
+}
+
+function saveJobs() {
+  try { localStorage.setItem('jat_jobs', JSON.stringify(jobs)); } catch(e) {}
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmt(d) {
+  if (!d) return '';
+  const dt = new Date(d + 'T00:00:00');
+  return dt.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+}
+
+function interviewStatuses() { return ['Phone Screen','Interview','Final Round']; }
+
+function renderStats() {
+  const total = jobs.length;
+  document.getElementById('app-count').textContent = total + ' application' + (total !== 1 ? 's' : '');
+  const html = STATS.map(s => {
+    const count = s.key === 'Interview'
+      ? jobs.filter(j => interviewStatuses().includes(j.status)).length
+      : jobs.filter(j => j.status === s.key).length;
+    return `<div class="stat-card"><div class="stat-label">${s.label}</div><div class="stat-value">${count}</div></div>`;
+  }).join('');
+  document.getElementById('stats-row').innerHTML =
+    `<div class="stat-card"><div class="stat-label">Total</div><div class="stat-value">${total}</div></div>` + html;
+}
+
+function filterMatch(j) {
+  if (currentFilter === 'all') return true;
+  if (currentFilter === 'Interview') return interviewStatuses().includes(j.status);
+  return j.status === currentFilter;
+}
+
+function searchMatch(j) {
+  const q = document.getElementById('search-box').value.toLowerCase();
+  if (!q) return true;
+  return (j.title + j.company + (j.notes||'')).toLowerCase().includes(q);
+}
+
+function renderList() {
+  const el = document.getElementById('jobs-list');
+  const visible = jobs.filter(j => filterMatch(j) && searchMatch(j));
+  if (!visible.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-title">${jobs.length ? 'No matches' : 'No jobs yet'}</div>
+      <div class="empty-sub">${jobs.length ? 'Try a different filter or search.' : 'Click "Add job" to get started.'}</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML = visible.map(j => {
+    const c = STATUS_CONFIG[j.status] || STATUS_CONFIG['Wishlist'];
+    return `<div class="job-card">
+      <div class="status-dot" style="background:${c.dot}"></div>
+      <div class="job-main">
+        <div class="job-top">
+          <div>
+            <div class="job-title">${esc(j.title)}</div>
+            <div class="job-company">${esc(j.company)}</div>
+          </div>
+          <span class="status-badge" style="background:${c.bg};color:${c.text}">${esc(j.status)}</span>
+        </div>
+        ${j.notes ? `<div class="job-notes">${esc(j.notes)}</div>` : ''}
+        <div class="job-meta">
+          ${j.date ? `<span class="job-date">Applied ${fmt(j.date)}</span>` : ''}
+          ${j.url ? `<a class="job-link" href="${esc(j.url)}" target="_blank" rel="noopener">View posting ↗</a>` : ''}
+        </div>
+      </div>
+      <div class="job-actions">
+        <button class="icon-btn" title="Edit" onclick="openEdit('${esc(j.id)}')">✎</button>
+        <button class="icon-btn" title="Remove" onclick="askDelete('${esc(j.id)}')">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function render() { renderStats(); renderList(); }
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderList();
+}
+
+function openAdd() {
+  editingId = null;
+  document.getElementById('modal-title').textContent = 'Add job';
+  ['title','company','url','notes'].forEach(k => document.getElementById('f-'+k).value = '');
+  document.getElementById('f-status').value = 'Wishlist';
+  document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('modal').style.display = 'flex';
+  document.getElementById('f-title').focus();
+}
+
+function openEdit(id) {
+  const j = jobs.find(x => x.id === id);
+  if (!j) return;
+  editingId = id;
+  document.getElementById('modal-title').textContent = 'Edit job';
+  document.getElementById('f-title').value = j.title || '';
+  document.getElementById('f-company').value = j.company || '';
+  document.getElementById('f-url').value = j.url || '';
+  document.getElementById('f-status').value = j.status || 'Wishlist';
+  document.getElementById('f-date').value = j.date || '';
+  document.getElementById('f-notes').value = j.notes || '';
+  document.getElementById('modal').style.display = 'flex';
+  document.getElementById('f-title').focus();
+}
+
+function closeModal() { document.getElementById('modal').style.display = 'none'; }
+
+function saveJob() {
+  const title = document.getElementById('f-title').value.trim();
+  const company = document.getElementById('f-company').value.trim();
+  if (!title || !company) { alert('Job title and company are required.'); return; }
+  const job = {
+    id: editingId || Math.random().toString(36).slice(2) + Date.now().toString(36),
+    title, company,
+    url: document.getElementById('f-url').value.trim(),
+    status: document.getElementById('f-status').value,
+    date: document.getElementById('f-date').value,
+    notes: document.getElementById('f-notes').value.trim(),
+  };
+  if (editingId) {
+    const idx = jobs.findIndex(x => x.id === editingId);
+    if (idx !== -1) jobs[idx] = job;
+  } else {
+    jobs.unshift(job);
+  }
+  saveJobs();
+  closeModal();
+  render();
+}
+
+function askDelete(id) {
+  deleteId = id;
+  document.getElementById('confirm').style.display = 'flex';
+}
+
+function confirmDelete() {
+  jobs = jobs.filter(j => j.id !== deleteId);
+  saveJobs();
+  document.getElementById('confirm').style.display = 'none';
+  render();
+}
+
+document.getElementById('modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+loadJobs();
+render();
+</script>
+</body>
+</html>
