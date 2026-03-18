@@ -524,10 +524,20 @@ function openAdd() {
   document.getElementById('modal-title').textContent = 'Add job';
   ['title','company','url','notes'].forEach(k => document.getElementById('f-'+k).value = '');
   document.getElementById('f-status').value = 'Wishlist';
-  document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('f-date').value = '';
   document.getElementById('modal').style.display = 'flex';
   document.getElementById('f-title').focus();
 }
+
+document.getElementById('f-status').addEventListener('change', function() {
+  const dateField = document.getElementById('f-date');
+  if (this.value !== 'Wishlist' && dateField.value === '') {
+    dateField.value = new Date().toISOString().split('T')[0];
+  }
+  if (this.value === 'Wishlist') {
+    dateField.value = '';
+  }
+});
 
 function openEdit(id) {
   const j = jobs.find(x => x.id === id);
