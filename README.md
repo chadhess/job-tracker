@@ -1,6 +1,6 @@
 # Job Application Tracker
 
-A lightweight, single-file web app for tracking job applications — from wishlist through offer or rejection. No sign-up, no server, no installation required. Available immediate at: https://job-tracker-indol-five.vercel.app/
+A lightweight, single-file web app for tracking job applications — from wishlist through offer or rejection. No sign-up, no server, no installation required. Available at: https://job-tracker-indol-five.vercel.app/
 
 ## Features
 
