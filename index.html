@@ -302,7 +302,7 @@
       <button class="filter-btn" onclick="window.setFilter('Interview',this)">Interviewing</button>
       <button class="filter-btn" onclick="window.setFilter('Offer',this)">Offers</button>
       <button class="filter-btn" onclick="window.setFilter('Rejected',this)">Rejected</button>
-      <input class="search-box" type="text" placeholder="Search..." id="search-box" oninput="renderList ? renderList() : null" />
+      <input class="search-box" type="text" placeholder="Search..." id="search-box"     oninput="window.renderList && window.renderList()" />
     </div>
     <div class="jobs-list" id="jobs-list">
       <div class="loading"><div class="spinner"></div> Loading your jobs…</div>
@@ -353,11 +353,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 (async function() {
-  // ─────────────────────────────────────────────────────────
-  // PASTE YOUR SUPABASE CREDENTIALS HERE
-  const SUPABASE_URL  = 'https://kpnrvvutdequfhjvmbic.supabase.co';      // e.g. https://abcdefgh.supabase.co
-  const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwbnJ2dnV0ZGVxdWZoanZtYmljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxMDgzMTgsImV4cCI6MjA4OTY4NDMxOH0.SJudCyz8AM9SpD9vBlWFXdaJo_LORnA-pQaRiD0whBw'; // starts with eyJ...
-  // ─────────────────────────────────────────────────────────
+  const SUPABASE_URL  = 'https://kpnrvvutdequfhjvmbic.supabase.co';
+  const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwbnJ2dnV0ZGVxdWZoanZtYmljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxMDgzMTgsImV4cCI6MjA4OTY4NDMxOH0.SJudCyz8AM9SpD9vBlWFXdaJo_LORnA-pQaRiD0whBw';
 
   var sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
@@ -385,19 +382,25 @@
     { key:'Rejected',  label:'Rejected' },
   ];
 
+  // Helper: Escape HTML
   function esc(s) {
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
+
+  // Helper: Format Date
   function fmt(d) {
     if (!d) return '';
     return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
   }
+
   function interviewStatuses() { return ['Phone Screen','Interview','Final Round']; }
+
   function showToast(msg) {
     var t = document.getElementById('toast');
     t.textContent = msg; t.classList.add('show');
     setTimeout(function() { t.classList.remove('show'); }, 3000);
   }
+
   function showScreen(which) {
     document.getElementById('auth-screen').style.display = which === 'auth' ? 'flex' : 'none';
     document.getElementById('app-screen').style.display  = which === 'app'  ? 'block' : 'none';
@@ -419,17 +422,33 @@
     var signin   = document.getElementById('tab-signin').classList.contains('active');
     var btn      = document.getElementById('auth-submit');
     var msgEl    = document.getElementById('auth-msg');
-    if (!email || !password) { msgEl.textContent = 'Please enter your email and password.'; msgEl.className = 'auth-msg error'; return; }
+    
+    if (!email || !password) { 
+      msgEl.textContent = 'Please enter your email and password.'; 
+      msgEl.className = 'auth-msg error'; 
+      return; 
+    }
+
     btn.disabled = true;
     btn.textContent = signin ? 'Signing in…' : 'Creating account…';
-    msgEl.textContent = '';
-    var result = signin
-      ? await sb.auth.signInWithPassword({ email: email, password: password })
-      : await sb.auth.signUp({ email: email, password: password });
+    
+    const { data, error } = signin
+      ? await sb.auth.signInWithPassword({ email, password })
+      : await sb.auth.signUp({ email, password });
+
     btn.disabled = false;
     btn.textContent = signin ? 'Sign in' : 'Create account';
-    if (result.error) { msgEl.textContent = result.error.message; msgEl.className = 'auth-msg error'; }
-    else if (!signin) { msgEl.textContent = 'Account created! Check your email to confirm, then sign in.'; msgEl.className = 'auth-msg success'; }
+
+    if (error) { 
+      msgEl.textContent = error.message; 
+      msgEl.className = 'auth-msg error'; 
+    } else if (!signin && data?.user?.identities?.length === 0) {
+        msgEl.textContent = 'This email is already registered.';
+        msgEl.className = 'auth-msg error';
+    } else if (!signin) {
+      msgEl.textContent = 'Check your email to confirm, then sign in.'; 
+      msgEl.className = 'auth-msg success'; 
+    }
   };
 
   window.signOut = async function() {
@@ -440,19 +459,20 @@
 
   // ── Database ──
   async function loadJobs() {
-    var result = await sb.from('jobs').select('*').order('created_at', { ascending: false });
-    if (result.error) { showToast('Error loading: ' + result.error.message); return; }
-    jobs = (result.data || []).map(function(row) {
-      return {
-        id:      row.id,
-        title:   row.title   || '',
-        company: row.company || '',
-        url:     row.url     || '',
-        status:  row.status  || 'Wishlist',
-        date:    row.date_applied || '',
-        notes:   row.notes   || '',
-      };
-    });
+    const { data, error } = await sb.from('jobs').select('*').order('created_at', { ascending: false });
+    if (error) { 
+      showToast('Error loading jobs.'); 
+      return; 
+    }
+    jobs = (data || []).map(row => ({
+      id:      row.id,
+      title:   row.title || '',
+      company: row.company || '',
+      url:     row.url || '',
+      status:  row.status || 'Wishlist',
+      date:    row.date_applied || '',
+      notes:   row.notes || '',
+    }));
     render();
   }
 
@@ -462,272 +482,195 @@
     document.getElementById('app-count').textContent = total + ' application' + (total !== 1 ? 's' : '');
     var html = STATS.map(function(s) {
       var count = s.key === 'Interview'
-        ? jobs.filter(function(j) { return interviewStatuses().indexOf(j.status) > -1; }).length
-        : jobs.filter(function(j) { return j.status === s.key; }).length;
-      return '<div class="stat-card"><div class="stat-label">'+s.label+'</div><div class="stat-value">'+count+'</div></div>';
+        ? jobs.filter(j => interviewStatuses().indexOf(j.status) > -1).length
+        : jobs.filter(j => j.status === s.key).length;
+      return `<div class="stat-card"><div class="stat-label">${s.label}</div><div class="stat-value">${count}</div></div>`;
     }).join('');
     document.getElementById('stats-row').innerHTML =
-      '<div class="stat-card"><div class="stat-label">Total</div><div class="stat-value">'+total+'</div></div>' + html;
-  }
-
-  function filterMatch(j) {
-    if (currentFilter === 'all') return true;
-    if (currentFilter === 'Interview') return interviewStatuses().indexOf(j.status) > -1;
-    return j.status === currentFilter;
-  }
-
-  function searchMatch(j) {
-    var q = document.getElementById('search-box').value.toLowerCase();
-    if (!q) return true;
-    return (j.title + j.company + (j.notes||'')).toLowerCase().indexOf(q) > -1;
+      `<div class="stat-card"><div class="stat-label">Total</div><div class="stat-value">${total}</div></div>` + html;
   }
 
   function renderList() {
     var el = document.getElementById('jobs-list');
-    var visible = jobs.filter(function(j) { return filterMatch(j) && searchMatch(j); });
+    var q = document.getElementById('search-box').value.toLowerCase();
+    
+    var visible = jobs.filter(j => {
+      const matchFilter = currentFilter === 'all' || (currentFilter === 'Interview' ? interviewStatuses().indexOf(j.status) > -1 : j.status === currentFilter);
+      const matchSearch = !q || (j.title + j.company + (j.notes||'')).toLowerCase().includes(q);
+      return matchFilter && matchSearch;
+    });
+
     if (!visible.length) {
-      el.innerHTML = '<div class="empty-state"><div class="empty-title">'+(jobs.length ? 'No matches' : 'No jobs yet')+'</div><div class="empty-sub">'+(jobs.length ? 'Try a different filter or search.' : 'Click &quot;Add job&quot; to get started.')+'</div></div>';
+      el.innerHTML = `<div class="empty-state"><div class="empty-title">${jobs.length ? 'No matches' : 'No jobs yet'}</div><div class="empty-sub">Click "Add job" to get started.</div></div>`;
       return;
     }
-    el.innerHTML = visible.map(function(j) {
+
+    el.innerHTML = visible.map(j => {
       var c = STATUS_CONFIG[j.status] || STATUS_CONFIG['Wishlist'];
-      return '<div class="job-card">'
-        + '<div class="status-dot" style="background:'+c.dot+'"></div>'
-        + '<div class="job-main">'
-          + '<div class="job-top">'
-            + '<div>'
-              + '<div class="job-title">'+esc(j.title)+'</div>'
-              + '<div class="job-company">'+esc(j.company)+'</div>'
-            + '</div>'
-            + '<span class="status-badge" style="background:'+c.bg+';color:'+c.text+'">'+esc(j.status)+'</span>'
-          + '</div>'
-          + (j.notes ? '<div class="job-notes">'+esc(j.notes)+'</div>' : '')
-          + '<div class="job-meta">'
-            + (j.date ? '<span class="job-date">Applied '+fmt(j.date)+'</span>' : '')
-            + (j.url  ? '<a class="job-link" href="'+esc(j.url)+'" target="_blank" rel="noopener">View posting ↗</a>' : '')
-          + '</div>'
-        + '</div>'
-        + '<div class="job-actions">'
-          + '<button class="icon-btn" title="Edit" onclick="window.openEdit(\''+j.id+'\')">✎</button>'
-          + '<button class="icon-btn" title="Remove" onclick="window.askDelete(\''+j.id+'\')">✕</button>'
-        + '</div>'
-      + '</div>';
+      return `
+        <div class="job-card">
+          <div class="status-dot" style="background:${c.dot}"></div>
+          <div class="job-main">
+            <div class="job-top">
+              <div>
+                <div class="job-title">${esc(j.title)}</div>
+                <div class="job-company">${esc(j.company)}</div>
+              </div>
+              <span class="status-badge" style="background:${c.bg};color:${c.text}">${esc(j.status)}</span>
+            </div>
+            ${j.notes ? `<div class="job-notes">${esc(j.notes)}</div>` : ''}
+            <div class="job-meta">
+              ${j.date ? `<span class="job-date">Applied ${fmt(j.date)}</span>` : ''}
+              ${j.url ? `<a class="job-link" href="${esc(j.url)}" target="_blank" rel="noopener">View posting ↗</a>` : ''}
+            </div>
+          </div>
+          <div class="job-actions">
+            <button class="icon-btn" onclick="window.openEdit('${j.id}')">✎</button>
+            <button class="icon-btn" onclick="window.askDelete('${j.id}')">✕</button>
+          </div>
+        </div>`;
     }).join('');
   }
 
   function render() { renderStats(); renderList(); }
+  window.renderList = renderList;
 
   window.setFilter = function(f, btn) {
     currentFilter = f;
-    document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     renderList();
   };
 
-  // ── Add / Edit ──
+  // ── Add / Edit Logic ──
   window.openAdd = function() {
     editingId = null;
     document.getElementById('modal-title').textContent = 'Add job';
-    ['title','company','url','notes'].forEach(function(k) { document.getElementById('f-'+k).value = ''; });
+    ['title','company','url','notes'].forEach(k => document.getElementById('f-'+k).value = '');
     document.getElementById('f-status').value = 'Wishlist';
     document.getElementById('f-date').value = '';
     document.getElementById('modal').style.display = 'flex';
-    document.getElementById('f-title').focus();
   };
 
   window.openEdit = function(id) {
-    var j = null;
-    for (var i = 0; i < jobs.length; i++) { if (jobs[i].id === id) { j = jobs[i]; break; } }
-    if (!j) { console.error('openEdit: job not found', id); return; }
+    var j = jobs.find(job => job.id === id);
+    if (!j) return;
     editingId = id;
     document.getElementById('modal-title').textContent = 'Edit job';
-    document.getElementById('f-title').value   = j.title;
+    document.getElementById('f-title').value = j.title;
     document.getElementById('f-company').value = j.company;
-    document.getElementById('f-url').value     = j.url;
-    document.getElementById('f-status').value  = j.status;
-    document.getElementById('f-date').value    = j.date;
-    document.getElementById('f-notes').value   = j.notes;
+    document.getElementById('f-url').value = j.url;
+    document.getElementById('f-status').value = j.status;
+    document.getElementById('f-date').value = j.date;
+    document.getElementById('f-notes').value = j.notes;
     document.getElementById('modal').style.display = 'flex';
-    document.getElementById('f-title').focus();
   };
 
-  window.closeModal = function() { document.getElementById('modal').style.display = 'none'; };
+  window.closeModal = function() {
+    editingId = null;
+    document.getElementById('modal').style.display = 'none';
+  };
 
   window.saveJob = async function() {
-    var title   = document.getElementById('f-title').value.trim();
-    var company = document.getElementById('f-company').value.trim();
-    if (!title || !company) { alert('Job title and company are required.'); return; }
-    var btn = document.getElementById('btn-save');
-    btn.disabled = true; btn.textContent = 'Saving…';
-    var base = {
-      title:        title,
-      company:      company,
-      url:          document.getElementById('f-url').value.trim(),
-      status:       document.getElementById('f-status').value,
+    if (!currentUser) return showToast("Session expired. Please sign in.");
+    
+    const title = document.getElementById('f-title').value.trim();
+    const company = document.getElementById('f-company').value.trim();
+    if (!title || !company) return alert('Job title and company are required.');
+
+    const btn = document.getElementById('btn-save');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    const payload = {
+      title,
+      company,
+      url: document.getElementById('f-url').value.trim(),
+      status: document.getElementById('f-status').value,
       date_applied: document.getElementById('f-date').value || null,
-      notes:        document.getElementById('f-notes').value.trim(),
+      notes: document.getElementById('f-notes').value.trim(),
+      user_id: currentUser.id
     };
-    var result = editingId
-      ? await sb.from('jobs').update(base).eq('id', editingId)
-      : await sb.from('jobs').insert(Object.assign({}, base, { user_id: currentUser.id }));
-    btn.disabled = false; btn.textContent = 'Save';
-    if (result.error) { showToast('Error saving: ' + result.error.message); return; }
-    window.closeModal();
-    await loadJobs();
-    showToast(editingId ? 'Job updated.' : 'Job added.');
+
+    try {
+      const { error } = editingId 
+        ? await sb.from('jobs').update(payload).eq('id', editingId)
+        : await sb.from('jobs').insert([payload]);
+
+      if (error) throw error;
+
+      showToast(editingId ? 'Job updated.' : 'Job added.');
+      window.closeModal();
+      await loadJobs();
+    } catch (err) {
+      showToast('Save failed: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save';
+    }
   };
 
-  // ── Delete ──
+  // ── Delete Logic ──
   window.askDelete = function(id) {
-    console.log('askDelete called with id:', id);
     deleteId = id;
     document.getElementById('confirm').style.display = 'flex';
   };
 
-  window.confirmDelete = async function() {
-    console.log('confirmDelete called. deleteId:', deleteId, 'user:', currentUser && currentUser.id);
-    document.getElementById('confirm').style.display = 'none';
-    if (!deleteId) { showToast('No job selected for deletion.'); return; }
-    var result = await sb.from('jobs').delete().eq('id', deleteId).select();
-    console.log('Delete result:', result);
-    if (result.error) {
-      showToast('Delete failed: ' + result.error.message + ' (' + result.status + ')');
-      return;
-    }
-    if (!result.data || result.data.length === 0) {
-      showToast('Delete failed: row not found or permission denied.');
-      return;
-    }
-    deleteId = null;
-    await loadJobs();
-    showToast('Job removed.');
-  };
-
   window.cancelDelete = function() {
+    deleteId = null;
     document.getElementById('confirm').style.display = 'none';
   };
 
-  // ── CSV export ──
-  window.exportCSV = function() {
-    if (!jobs.length) { showToast('No jobs to export.'); return; }
-    var headers = ['Title','Company','Status','Date Applied','URL','Notes'];
-    var rows = jobs.map(function(j) {
-      return [j.title, j.company, j.status, j.date, j.url, j.notes].map(function(v) {
-        var s = String(v||'');
-        return (s.indexOf(',')>-1||s.indexOf('"')>-1||s.indexOf('\n')>-1) ? '"'+s.replace(/"/g,'""')+'"' : s;
-      }).join(',');
-    });
-    var csv  = [headers.join(',')].concat(rows).join('\r\n');
-    var blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
-    var url  = URL.createObjectURL(blob);
-    var a    = document.createElement('a');
-    a.href = url;
-    a.download = 'job-tracker-backup-' + new Date().toISOString().split('T')[0] + '.csv';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast(jobs.length + ' jobs exported.');
-  };
+  window.confirmDelete = async function() {
+    if (!deleteId || !currentUser) return;
+    
+    const targetId = deleteId; // Snapshot
+    // Close modal immediately for UX
+    document.getElementById('confirm').style.display = 'none';
 
-  // ── CSV import ──
-  function parseCSVLine(line) {
-    var result = [], cur = '', inQ = false;
-    for (var i = 0; i < line.length; i++) {
-      var ch = line[i];
-      if (ch==='"') { if (inQ && line[i+1]==='"') { cur+='"'; i++; } else inQ=!inQ; }
-      else if (ch===',' && !inQ) { result.push(cur.trim()); cur=''; }
-      else cur += ch;
-    }
-    result.push(cur.trim());
-    return result;
-  }
+    try {
+      // Don't use .select() here; some RLS policies make it return empty on delete
+      const { error } = await sb.from('jobs')
+        .delete()
+        .eq('id', targetId)
+        .eq('user_id', currentUser.id);
 
-  function inferStatus(row) {
-    var submitted = (row['Submitted']||'').toLowerCase();
-    var heard     = (row['Heard Back?']||'').toLowerCase();
-    var offer     = (row['Offer?']||'').toLowerCase();
-    if (offer.indexOf('yes')>-1||offer.indexOf('!')>-1) return 'Offer';
-    if (heard==='bad')     return 'Rejected';
-    if (heard==='good')    return 'Interview';
-    if (heard==='waiting') return 'Applied';
-    if (submitted==='yes') return 'Applied';
-    if (submitted==='closed'||heard==='closed') return 'Withdrawn';
-    return 'Wishlist';
-  }
+      if (error) throw error;
 
-  window.handleCSV = async function(e) {
-    var file = e.target.files[0];
-    if (!file) return;
-    var reader = new FileReader();
-    reader.onload = async function(ev) {
-      var lines = ev.target.result.split(/\r?\n/).filter(function(l) { return l.trim(); });
-      if (lines.length < 2) { showToast('CSV appears empty.'); return; }
-      var headers = parseCSVLine(lines[0]).map(function(h) { return h.replace(/^"|"$/g,''); });
-      var rows = [];
-      for (var i = 1; i < lines.length; i++) {
-        var vals = parseCSVLine(lines[i]);
-        if (vals.every(function(v) { return !v; })) continue;
-        var row = {};
-        headers.forEach(function(h, idx) { row[h] = (vals[idx]||'').replace(/^"|"$/g,''); });
-        var company = (row['Name']||row['Company']||'').trim();
-        var title   = (row['Role']||row['Title']||'').trim();
-        if (!company && !title) continue;
-        var noteParts = [];
-        if (row['Interest']) noteParts.push('Interest: ' + row['Interest']);
-        if (row['Notes'])    noteParts.push(row['Notes']);
-        rows.push({
-          user_id:      currentUser.id,
-          company:      company || '(unknown)',
-          title:        title   || '(unknown)',
-          url:          row['Website'] || row['URL'] || '',
-          status:       inferStatus(row),
-          date_applied: null,
-          notes:        noteParts.join(' | '),
-        });
-      }
-      e.target.value = '';
-      if (!rows.length) { showToast('No valid rows found.'); return; }
-      var result = await sb.from('jobs').insert(rows);
-      if (result.error) { showToast('Import error: ' + result.error.message); return; }
+      deleteId = null; // Clear ONLY on success
       await loadJobs();
-      showToast(rows.length + ' jobs imported.');
-    };
-    reader.readAsText(file);
+      showToast('Job removed.');
+    } catch (err) {
+      console.error(err);
+      showToast('Delete failed. Please try again.');
+      // Keep deleteId so they can try again if they want
+    }
   };
-
-  // ── Status date auto-fill ──
-  document.getElementById('f-status').addEventListener('change', function() {
-    var df = document.getElementById('f-date');
-    if (this.value !== 'Wishlist' && !df.value) df.value = new Date().toISOString().split('T')[0];
-    if (this.value === 'Wishlist') df.value = '';
-  });
-
-  document.getElementById('modal').addEventListener('click', function(ev) {
-    if (ev.target === ev.currentTarget) window.closeModal();
-  });
-  document.addEventListener('keydown', function(ev) { if (ev.key==='Escape') window.closeModal(); });
-  document.getElementById('auth-password').addEventListener('keydown', function(ev) {
-    if (ev.key==='Enter') window.handleAuth();
-  });
 
   // ── Bootstrap ──
-  var sessionResult = await sb.auth.getSession();
-  if (sessionResult.data && sessionResult.data.session) {
-    currentUser = sessionResult.data.session.user;
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    currentUser = session.user;
     showScreen('app');
-    await loadJobs();
+    loadJobs();
   } else {
     showScreen('auth');
   }
 
-  sb.auth.onAuthStateChange(async function(_event, session) {
-    if (session) {
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN') {
       currentUser = session.user;
       showScreen('app');
-      await loadJobs();
-    } else {
-      currentUser = null; jobs = [];
+      loadJobs();
+    } else if (event === 'SIGNED_OUT') {
+      currentUser = null;
       showScreen('auth');
     }
+  });
+
+  // Modal close on overlay click
+  document.getElementById('modal').addEventListener('click', (e) => {
+    if (e.target.id === 'modal') window.closeModal();
   });
 
 })();
